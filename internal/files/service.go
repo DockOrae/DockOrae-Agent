@@ -4,9 +4,11 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"io"
 	"os"
 	"os/exec"
+	"path/filepath"
 	"time"
 
 	"github.com/DockOrae/DockOrae-Agent/internal/errs"
@@ -14,11 +16,41 @@ import (
 )
 
 // Service 宿主文件操作服务(面板唯一调用方)。
-// Direct 模式:fsop 逻辑进程内执行;Nsenter 模式:经 `nsenter ... -- /proc/self/exe fsop`
+// Direct 模式:fsop 逻辑进程内执行;Nsenter 模式:经 `nsenter ... -- <bin> fsop`
 // 重新执行自身二进制进入宿主挂载命名空间 —— 两种模式共用同一套纯 Go 文件实现。
 type Service struct {
 	exec  *hostexec.Execer
 	trash *TrashService
+}
+
+// ensureSelfBin 把自身二进制复制到宿主共享目录(与 agent socket 同目录,宿主可见),
+// 供 nsenter 重执行;二进制已一致时跳过。
+func (s *Service) ensureSelfBin() (string, error) {
+	if !s.exec.InContainer() {
+		return "/proc/self/exe", nil
+	}
+	self, err := os.ReadFile("/proc/self/exe")
+	if err != nil {
+		return "", err
+	}
+	socket := os.Getenv("AGENT_SOCKET")
+	shared := filepath.Dir(socket)
+	if shared == "." || shared == "/" || socket == "" {
+		return "", errors.New("AGENT_SOCKET 无效,无法定位宿主共享目录")
+	}
+	target := filepath.Join(shared, "agent-bin")
+	if existing, err := os.ReadFile(target); err == nil && bytes.Equal(existing, self) {
+		return target, nil
+	}
+	tmp := target + ".tmp"
+	if err := os.WriteFile(tmp, self, 0o755); err != nil {
+		return "", err
+	}
+	if err := os.Rename(tmp, target); err != nil {
+		_ = os.Remove(tmp)
+		return "", err
+	}
+	return target, nil
 }
 
 // New 构造文件服务(dataDir 用于回收站开关状态持久化)
@@ -40,8 +72,14 @@ func (s *Service) run(op string, args any, stdin io.Reader) ([]byte, error) {
 		}
 		return envelopeData(buf.Bytes())
 	}
-	// nsenter 模式:进入宿主命名空间后重新执行自身二进制
-	cmd := s.exec.Command("/proc/self/exe", "fsop", op, string(argJSON))
+	// nsenter 模式:进入宿主命名空间后重新执行自身二进制。
+	// 坑:容器 overlay 内的二进制路径在宿主挂载命名空间不可见(/proc/self/exe 解析 ENOENT),
+	// 须先把自身复制到宿主共享目录(/run/dockorae/agent-bin,与 socket 同目录)再执行。
+	binPath, binErr := s.ensureSelfBin()
+	if binErr != nil {
+		return nil, errs.Newf(errs.INTERNAL, "准备宿主执行二进制失败: %v", binErr)
+	}
+	cmd := s.exec.Command(binPath, "fsop", op, string(argJSON))
 	if stdin != nil {
 		cmd.Stdin = stdin
 	}
