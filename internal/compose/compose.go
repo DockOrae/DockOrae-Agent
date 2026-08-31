@@ -177,22 +177,24 @@ func (s *Service) Status(project string) (map[string]any, error) {
 	// 镜像 digest
 	imgOut, err := s.Exec.ComposeOutput(30*time.Second, "-p", name, "-f", p.Configs, "images", "--format", "json")
 	if err != nil {
-		imgOut = nil // 兼容:镜像信息尽力而为
+		imgOut = nil // 镜像信息尽力而为
 	}
-	var containers []map[string]any
+	containers := parseComposePS(psOut)
 	var images []ServiceRecord
-	if len(psOut) > 0 {
-		_ = json.Unmarshal(psOut, &containers)
-	}
 	if len(imgOut) > 0 {
 		var raw []struct {
-			Service string `json:"Service"`
-			Image   string `json:"Image"`
-			Digest  string `json:"Digest"`
+			ID            string `json:"ID"`
+			ContainerName string `json:"ContainerName"`
+			Repository    string `json:"Repository"`
+			Tag           string `json:"Tag"`
 		}
 		_ = json.Unmarshal(imgOut, &raw)
 		for _, r := range raw {
-			images = append(images, ServiceRecord{Service: r.Service, Image: r.Image, Digest: r.Digest})
+			img := r.Repository
+			if r.Tag != "" {
+				img += ":" + r.Tag
+			}
+			images = append(images, ServiceRecord{Service: r.ContainerName, Image: img, Digest: r.ID})
 		}
 	}
 	return map[string]any{
@@ -366,41 +368,46 @@ func (s *Service) History(project string) ([]UpdateRecord, error) {
 
 // ---------- 内部 ----------
 
-// serviceDigests 读取各服务当前镜像 digest
+// serviceDigests 读取各服务当前镜像 digest。
+// 仅支持新版 compose 输出格式(ContainerName/Repository/Tag/ID);
+// ID 即 sha256 镜像 ID,可反映内容更新。
 func (s *Service) serviceDigests(project, configs string) ([]ServiceRecord, error) {
 	out, err := s.Exec.ComposeOutput(30*time.Second, "-p", project, "-f", configs, "images", "--format", "json")
 	if err != nil {
 		return nil, err
 	}
 	var raw []struct {
-		Service string `json:"Service"`
-		Image   string `json:"Image"`
-		Digest  string `json:"Digest"`
+		ID            string `json:"ID"`
+		ContainerName string `json:"ContainerName"`
+		Repository    string `json:"Repository"`
+		Tag           string `json:"Tag"`
 	}
 	if err := json.Unmarshal(out, &raw); err != nil {
 		return nil, err
 	}
 	recs := make([]ServiceRecord, 0, len(raw))
 	for _, r := range raw {
-		recs = append(recs, ServiceRecord{Service: r.Service, Image: r.Image, Digest: r.Digest})
+		img := r.Repository
+		if r.Tag != "" {
+			img += ":" + r.Tag
+		}
+		recs = append(recs, ServiceRecord{Service: r.ContainerName, Image: img, Digest: r.ID})
 	}
 	return recs, nil
 }
 
-// healthCheck 基本健康检查:等待 15 秒后所有服务容器运行中
+// healthCheck 基本健康检查:等待所有服务容器进入 running 状态(最多 60 秒)
 func (s *Service) healthCheck(project, configs string) error {
 	deadline := time.Now().Add(60 * time.Second)
 	for time.Now().Before(deadline) {
 		out, err := s.Exec.ComposeOutput(15*time.Second, "-p", project, "-f", configs, "ps", "--format", "json")
 		if err == nil {
-			var containers []struct {
-				Service string `json:"Service"`
-				State   string `json:"State"`
-			}
-			if json.Unmarshal(out, &containers) == nil && len(containers) > 0 {
+			containers := parseComposePS(out)
+			if len(containers) > 0 {
 				allUp := true
 				for _, c := range containers {
-					if !strings.EqualFold(c.State, "running") {
+					st, _ := c["State"].(string)
+					if !strings.EqualFold(st, "running") {
 						allUp = false
 						break
 					}
@@ -415,6 +422,28 @@ func (s *Service) healthCheck(project, configs string) error {
 	return fmt.Errorf("容器未在 60 秒内全部进入 running 状态")
 }
 
+// parseComposePS 解析 compose ps --format json 输出。
+// 兼容单对象/多行/数组三种形态(docker compose v5.5 单容器输出单对象)。
+func parseComposePS(out []byte) []map[string]any {
+	var result []map[string]any
+	for _, line := range strings.Split(strings.TrimSpace(string(out)), "\n") {
+		line = strings.TrimSpace(line)
+		if line == "" {
+			continue
+		}
+		var m map[string]any
+		if json.Unmarshal([]byte(line), &m) == nil {
+			result = append(result, m)
+			continue
+		}
+		var arr []map[string]any
+		if json.Unmarshal([]byte(line), &arr) == nil {
+			result = append(result, arr...)
+		}
+	}
+	return result
+}
+
 // rollbackDigests 回滚:把本地镜像重新 tag 到 compose 中引用的 tag,再 up(不拉取)。
 // 若旧记录缺失 digest,则跳过该服务(无法回滚的保持当前)。
 func (s *Service) rollbackDigests(project, configs string, previous []ServiceRecord) error {
@@ -423,18 +452,20 @@ func (s *Service) rollbackDigests(project, configs string, previous []ServiceRec
 		if rec.Digest == "" {
 			continue
 		}
-		// image 字段形如 nginx:1.25 或 nginx@sha256:xxx;取 tag 部分重新打标
-		tag := rec.Image
-		if i := strings.LastIndex(tag, "@"); i >= 0 {
-			tag = tag[:i]
+		// 从 image 中拆出 repository 与 tag:"nginx:1.27-alpine" → repo=nginx, tag=1.27-alpine;
+		// docker tag 源只能用 repo@digest(不允许 tag@digest 混合引用)
+		img := rec.Image
+		tag := ""
+		if i := strings.LastIndex(img, ":"); i > strings.LastIndex(img, "/") {
+			tag = img[i+1:]
+			img = img[:i]
 		}
-		// docker tag <image>@<digest> <image>:<tag>
-		cmds = append(cmds, fmt.Sprintf("docker tag %s@%s %s", rec.Image, rec.Digest, tag))
+		cmds = append(cmds, fmt.Sprintf("docker tag %s@%s %s:%s", img, rec.Digest, img, tag))
 	}
 	if len(cmds) == 0 {
 		return fmt.Errorf("无可用回滚 digest")
 	}
-	script := strings.Join(cmds, " && ") + fmt.Sprintf(" && %s -p %s -f %s up -d --no-pull --remove-orphans",
+	script := strings.Join(cmds, " && ") + fmt.Sprintf(" && %s -p %s -f %s up -d --pull never --remove-orphans",
 		s.composeBinStr(), hostexec.Quote(project), hostexec.Quote(configs))
 	if err := s.Exec.RunScript(script); err != nil {
 		return err

@@ -53,8 +53,8 @@ func TestValidatePath(t *testing.T) {
 }
 
 func TestControlledSwapName(t *testing.T) {
-	ok := []string{"/swapfile", "/swapfile1", "/swapfile2"}
-	bad := []string{"/dev/sda1", "/swapfilex", "/var/swap", "/swap"}
+	ok := []string{"/swapfile", "/swapfile1", "/swapfile2", "/swapfile.new", "/swapfile2.new"}
+	bad := []string{"/dev/sda1", "/swapfilex", "/var/swap", "/swap", "/swapfile.newx"}
 	for _, p := range ok {
 		if !isControlledName(p) {
 			t.Errorf("isControlledName(%q) 应为 true", p)

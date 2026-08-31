@@ -60,14 +60,14 @@ func (s *Service) Info() (map[string]any, error) {
 	}, nil
 }
 
-// Timezone 读取当前时区(/etc/timezone 优先,回退 localtime 解析)
+// Timezone 读取当前时区(timedatectl 优先——权威来源,兼容 /etc/timezone 与 localtime 不一致的宿主机;
+// 回退 /etc/timezone 文件)
 func (s *Service) Timezone() string {
-	if tz, err := s.Exec.OutputString("cat", "/etc/timezone"); err == nil && tz != "" {
-		return tz
-	}
-	// 回退:timedatectl
 	if out, err := s.Exec.OutputString("timedatectl", "show", "-p", "Timezone", "--value"); err == nil && out != "" {
 		return out
+	}
+	if tz, err := s.Exec.OutputString("cat", "/etc/timezone"); err == nil && tz != "" {
+		return tz
 	}
 	return "UTC"
 }

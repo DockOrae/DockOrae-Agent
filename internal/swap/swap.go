@@ -4,6 +4,7 @@
 package swap
 
 import (
+	"encoding/json"
 	"fmt"
 	"path/filepath"
 	"regexp"
@@ -266,14 +267,17 @@ func (s *Service) Resize(sizeMB int, path string) (map[string]any, error) {
 	if err := s.updateFstab(target, existingPath); err != nil {
 		return nil, errs.Newf(errs.SWAP_RESIZE_FAILED, "更新 fstab 失败: %v", err)
 	}
-	// Verify
+	// Verify:同一路径 resize 时生效文件为 target+".new"(新建→切换中间态),两种都算成功。
+	// size 容差 4096:mkswap 在文件末尾写签名页,实际可用 swap = 文件大小 - 4096
 	ver, err := s.Status()
 	if err != nil {
 		return nil, err
 	}
 	found := false
 	for _, d := range ver["devices"].([]map[string]any) {
-		if d["path"] == target && d["size"].(int64) == bytes {
+		p, _ := d["path"].(string)
+		// size 经 JSON 序列化/反序列化后为 float64,需兼容两种类型
+		if (p == target || p == target+".new") && abs(toInt64(d["size"])-bytes) <= 4096 {
 			found = true
 			break
 		}
@@ -282,6 +286,31 @@ func (s *Service) Resize(sizeMB int, path string) (map[string]any, error) {
 		return nil, errs.Newf(errs.SWAP_RESIZE_FAILED, "调整后验证失败:未在 /proc/swaps 中找到 %s 且大小 %d", target, bytes)
 	}
 	return map[string]any{"ok": true, "path": target, "size": bytes, "status": ver}, nil
+}
+
+// toInt64 兼容 JSON 数值类型(int64/float64/int)
+func toInt64(v any) int64 {
+	switch n := v.(type) {
+	case int64:
+		return n
+	case float64:
+		return int64(n)
+	case int:
+		return int64(n)
+	case json.Number:
+		if i, err := n.Int64(); err == nil {
+			return i
+		}
+	}
+	return 0
+}
+
+// abs int64 绝对值
+func abs(n int64) int64 {
+	if n < 0 {
+		return -n
+	}
+	return n
 }
 
 // Delete 删除 swap(§17):swapoff → 移除 fstab → 删文件 → 验证。
@@ -373,7 +402,8 @@ func (s *Service) updateFstab(newPath, oldPath string) error {
 	return s.Exec.WriteFile(fstabPath, []byte(strings.Join(kept, "\n")), 0o644)
 }
 
-// removeFstab 移除指定路径的 swap 条目
+// removeFstab 移除 fstab 中所有受控 swap 文件条目(/swapfile、/swapfileN、.new 中间态),
+// 防止 delete 后残留指向已删除文件的条目
 func (s *Service) removeFstab(path string) error {
 	content, err := s.Exec.ReadFileString(fstabPath)
 	if err != nil {
@@ -383,7 +413,7 @@ func (s *Service) removeFstab(path string) error {
 	var kept []string
 	for _, line := range lines {
 		f := strings.Fields(line)
-		if len(f) > 0 && f[0] == path {
+		if len(f) > 0 && isControlledName(f[0]) {
 			continue
 		}
 		kept = append(kept, line)
@@ -427,13 +457,17 @@ func controlledSwapPath(devices []map[string]any) string {
 	return ""
 }
 
-// isControlledName 受控文件名:/swapfile 或 /swapfile 后跟数字
+// isControlledName 受控文件名:/swapfile 或 /swapfile 后跟数字,以及 resize 中间态的 .new 后缀
 func isControlledName(p string) bool {
-	if p == "/swapfile" {
+	base := strings.TrimSuffix(p, ".new")
+	if base == p && strings.HasSuffix(p, ".new") {
+		return false // 仅处理 .new 后缀一种形态
+	}
+	if base == "/swapfile" {
 		return true
 	}
-	if strings.HasPrefix(p, "/swapfile") {
-		rest := strings.TrimPrefix(p, "/swapfile")
+	if strings.HasPrefix(base, "/swapfile") {
+		rest := strings.TrimPrefix(base, "/swapfile")
 		if rest != "" {
 			if _, err := strconv.Atoi(rest); err == nil {
 				return true
