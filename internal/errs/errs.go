@@ -69,6 +69,18 @@ const (
 	NETWORK_OPERATION_FAILED = "NETWORK_OPERATION_FAILED"
 )
 
+// 宿主文件 / 终端错误码(§55 宿主文件管理器)
+const (
+	PATH_INVALID      = "PATH_INVALID"      // 路径非法/穿越
+	DANGEROUS_PATH    = "DANGEROUS_PATH"    // 危险系统目录,禁止该操作
+	FILE_EXISTS       = "FILE_EXISTS"       // 目标已存在
+	FILE_NOT_FOUND    = "FILE_NOT_FOUND"    // 文件/目录不存在
+	FILE_TOO_LARGE    = "FILE_TOO_LARGE"    // 超出大小限制
+	UNSUPPORTED_ARCH  = "UNSUPPORTED_ARCH"  // 不支持的压缩格式
+	PTY_UNAVAILABLE   = "PTY_UNAVAILABLE"   // PTY 不可用(仅 Linux 宿主支持)
+	TERMINAL_SESSION  = "TERMINAL_SESSION"  // 终端会话错误
+)
+
 // Error Agent 统一错误
 type Error struct {
 	Code    string `json:"code"`
@@ -94,17 +106,17 @@ func (e *Error) WithStatus(s int) *Error { e.Status = s; return e }
 // StatusFor 错误码 → 建议 HTTP 状态
 func StatusFor(code string) int {
 	switch code {
-	case INVALID_REQUEST, SWAP_INVALID_SIZE, INVALID_CONFIRM:
+	case INVALID_REQUEST, SWAP_INVALID_SIZE, INVALID_CONFIRM, PATH_INVALID, FILE_TOO_LARGE, UNSUPPORTED_ARCH:
 		return http.StatusBadRequest
 	case UNAUTHORIZED:
 		return http.StatusUnauthorized
-	case PERMISSION_DENIED:
+	case PERMISSION_DENIED, DANGEROUS_PATH:
 		return http.StatusForbidden
-	case NOT_FOUND, COMPOSE_PROJECT_NOT_FOUND:
+	case NOT_FOUND, COMPOSE_PROJECT_NOT_FOUND, FILE_NOT_FOUND:
 		return http.StatusNotFound
-	case CONFLICT, OPERATION_IN_PROGRESS:
+	case CONFLICT, OPERATION_IN_PROGRESS, FILE_EXISTS:
 		return http.StatusConflict
-	case AGENT_UNAVAILABLE, DOCKER_UNAVAILABLE:
+	case AGENT_UNAVAILABLE, DOCKER_UNAVAILABLE, PTY_UNAVAILABLE, TERMINAL_SESSION:
 		return http.StatusBadGateway
 	default:
 		return http.StatusInternalServerError

@@ -17,6 +17,15 @@ func TestRouteMatch(t *testing.T) {
 		{"GET", "/v1/compose/managed/logs", "/v1/compose/managed/logs", true, ""},
 		{"GET", "/v1/compose/managed/logs", "/v1/compose/managed/up", false, ""},
 		{"GET", "/v1/docker/events", "/v1/docker/events", true, ""},
+		// 宿主文件 / 终端(§55/§56)
+		{"GET", "/v1/host/files/list", "/v1/host/files/list", true, ""},
+		{"GET", "/v1/host/files/list", "/v1/host/files", false, ""},
+		{"POST", "/v1/host/files/remove", "/v1/host/files/remove", true, ""},
+		{"POST", "/v1/host/files/remove", "/v1/host/files/rename", false, ""},
+		{"GET", "/v1/host/files/download", "/v1/host/files/download", true, ""},
+		{"GET", "/v1/host/files/search", "/v1/host/files/search", true, ""},
+		{"GET", "/v1/host/terminal/ws", "/v1/host/terminal/ws", true, ""},
+		{"GET", "/v1/host/terminal/ws", "/v1/host/terminal/other", false, ""},
 	}
 	for _, c := range cases {
 		r := wsRoute{method: c.method, pattern: c.pattern}

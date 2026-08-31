@@ -20,6 +20,7 @@ import (
 	"github.com/DockOrae/DockOrae-Agent/internal/config"
 	"github.com/DockOrae/DockOrae-Agent/internal/disk"
 	"github.com/DockOrae/DockOrae-Agent/internal/docker"
+	"github.com/DockOrae/DockOrae-Agent/internal/files"
 	"github.com/DockOrae/DockOrae-Agent/internal/host"
 	"github.com/DockOrae/DockOrae-Agent/internal/hostexec"
 	"github.com/DockOrae/DockOrae-Agent/internal/network"
@@ -27,6 +28,7 @@ import (
 	"github.com/DockOrae/DockOrae-Agent/internal/swap"
 	"github.com/DockOrae/DockOrae-Agent/internal/sysctl"
 	"github.com/DockOrae/DockOrae-Agent/internal/system"
+	"github.com/DockOrae/DockOrae-Agent/internal/terminal"
 )
 
 // Handler 处理函数签名:返回 error 即按统一错误信封输出
@@ -52,6 +54,8 @@ type Server struct {
 	Disk           *disk.Service
 	Sysctl         *sysctl.Service
 	Network        *network.Service
+	Files          *files.Service
+	Term           *terminal.Manager
 
 	httpSrv   *http.Server
 	routes    []route // 模式路由(method + pattern,{param} 段)
@@ -113,6 +117,8 @@ func New(cfg *config.Config) (*Server, error) {
 		Disk:           disk.New(exec),
 		Sysctl:         sysctl.New(exec),
 		Network:        network.New(exec),
+		Files:          files.New(exec, cfg.DataDir),
+		Term:           terminal.NewManager(exec),
 	}
 	s.registerRoutes()
 	return s, nil
