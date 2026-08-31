@@ -23,8 +23,9 @@ type Service struct {
 	trash *TrashService
 }
 
-// ensureSelfBin 把自身二进制复制到宿主共享目录(与 agent socket 同目录,宿主可见),
-// 供 nsenter 重执行;二进制已一致时跳过。
+// ensureSelfBin 把自身二进制复制到宿主可见且可执行目录(供 nsenter 重执行)。
+// 目录优先级:AGENT_BIN_DIR(compose 挂载的宿主 exec 目录,如 /opt/docker-manager/bin:/agent-bin)
+// → 回退 AGENT_SOCKET 同目录(注意:宿主 /run 常为 noexec,不可执行)。
 func (s *Service) ensureSelfBin() (string, error) {
 	if !s.exec.InContainer() {
 		return "/proc/self/exe", nil
@@ -33,14 +34,20 @@ func (s *Service) ensureSelfBin() (string, error) {
 	if err != nil {
 		return "", err
 	}
-	socket := os.Getenv("AGENT_SOCKET")
-	shared := filepath.Dir(socket)
-	if shared == "." || shared == "/" || socket == "" {
-		return "", errors.New("AGENT_SOCKET 无效,无法定位宿主共享目录")
+	shared := os.Getenv("AGENT_BIN_DIR")
+	if shared == "" {
+		socket := os.Getenv("AGENT_SOCKET")
+		shared = filepath.Dir(socket)
+	}
+	if shared == "." || shared == "/" || shared == "" {
+		return "", errors.New("无法定位宿主二进制目录(AGENT_BIN_DIR/AGENT_SOCKET)")
 	}
 	target := filepath.Join(shared, "agent-bin")
 	if existing, err := os.ReadFile(target); err == nil && bytes.Equal(existing, self) {
 		return target, nil
+	}
+	if err := os.MkdirAll(shared, 0o755); err != nil {
+		return "", err
 	}
 	tmp := target + ".tmp"
 	if err := os.WriteFile(tmp, self, 0o755); err != nil {
