@@ -62,7 +62,7 @@ func main() {
 	do("12 sysctl 非法值", "POST", "/v1/sysctl/set", `{"key":"vm.swappiness","value":"999"}`, token)
 	do("13 服务名注入", "POST", "/v1/system/service", `{"name":"docker;rm -rf /","action":"restart"}`, token)
 	do("14 主机名注入", "POST", "/v1/host/hostname", `{"hostname":"x$(id)"}`, token)
-	do("15 防火墙端口注入", "POST", "/v1/firewall/add", `{"port":"80;rm","proto":"tcp","confirm":true}`, token)
+	do("15 容器ID注入", "POST", "/v1/docker/containers/$(id)/start", `{}`, token)
 	do("16 reboot 缺confirm", "POST", "/v1/host/reboot", `{}`, token)
 	do("17 docker/status", "GET", "/v1/docker/status", "", token)
 	do("18 disk/usage", "GET", "/v1/disk/usage", "", token)

@@ -19,7 +19,16 @@ type Ctx struct {
 	RequestID string
 	User      string // 发起用户(面板 X-Agent-User 头透传)
 	S         *Server
+	Params    map[string]string // 路由路径参数(:id 等)
 	started   time.Time
+}
+
+// Param 读取路由路径参数
+func (c *Ctx) Param(key string) string {
+	if c.Params == nil {
+		return ""
+	}
+	return c.Params[key]
 }
 
 // OK 成功信封:{"ok":true,"data":...}

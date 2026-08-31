@@ -3,6 +3,7 @@ module github.com/DockOrae/DockOrae-Agent
 go 1.26
 
 require (
+	github.com/gorilla/websocket v1.5.3
 	github.com/moby/moby/api v1.55.0
 	github.com/moby/moby/client v0.5.1
 	golang.org/x/mod v0.40.0

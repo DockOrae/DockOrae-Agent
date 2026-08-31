@@ -9,11 +9,14 @@
 package hostexec
 
 import (
+	"bufio"
 	"bytes"
 	"fmt"
+	"io"
 	"os"
 	"os/exec"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/DockOrae/DockOrae-Agent/internal/errs"
@@ -152,6 +155,55 @@ func (e *Execer) RemoveFile(path string) error {
 		return errs.Newf(errs.EXEC_FAILED, "删除文件 %s 失败: %v %s", path, err, strings.TrimSpace(string(out)))
 	}
 	return nil
+}
+
+// MkdirAll 递归创建宿主目录(0755)
+func (e *Execer) MkdirAll(path string) error {
+	cmd := e.Command("mkdir", "-p", path)
+	if out, err := runWithTimeout(cmd, 30*time.Second); err != nil {
+		return errs.Newf(errs.EXEC_FAILED, "创建目录 %s 失败: %v %s", path, err, strings.TrimSpace(string(out)))
+	}
+	return nil
+}
+
+// CommandStream 执行命令并逐行回调 stdout/stderr(流式,如 compose up 进度)。
+// 返回的 cancel 用于中断;errCh 在命令结束后返回最终错误。
+func (e *Execer) CommandStream(name string, args []string, onLine func(line string)) (cancel func(), errCh <-chan error, err error) {
+	cmd := e.Command(name, args...)
+	stdout, err := cmd.StdoutPipe()
+	if err != nil {
+		return nil, nil, err
+	}
+	stderr, err := cmd.StderrPipe()
+	if err != nil {
+		return nil, nil, err
+	}
+	if err := cmd.Start(); err != nil {
+		return nil, nil, err
+	}
+	ch := make(chan error, 1)
+	go func() {
+		defer close(ch)
+		var wg sync.WaitGroup
+		scan := func(r io.Reader) {
+			defer wg.Done()
+			sc := bufio.NewScanner(r)
+			sc.Buffer(make([]byte, 64*1024), 1024*1024)
+			for sc.Scan() {
+				onLine(sc.Text())
+			}
+		}
+		wg.Add(2)
+		go scan(stdout)
+		go scan(stderr)
+		wg.Wait()
+		ch <- cmd.Wait()
+	}()
+	return func() {
+		if cmd.Process != nil {
+			_ = cmd.Process.Kill()
+		}
+	}, ch, nil
 }
 
 // Exists 宿主文件是否存在

@@ -27,6 +27,7 @@ type Config struct {
 	TokenFile   string // token 文件(agent 启动时读取;命令行 token 优先)
 	DataDir     string // 状态数据目录(compose digest 记录、binary 状态等)
 	LogDir      string // 审计日志目录
+	ComposeDir  string // 面板宿主 compose 目录(AGENT_COMPOSE_DIR;面板更新用,默认 /opt/docker-manager)
 	InContainer bool   // 容器内运行(经 nsenter 操作宿主)
 	ComposeBin  string // compose 命令("docker compose" 或 "docker-compose";默认自动探测)
 }
@@ -38,6 +39,7 @@ func Load(socket, token, dataDir, logDir string, hostMode bool) *Config {
 		SocketGroup: firstNonEmpty(os.Getenv("AGENT_GROUP"), DefaultGroup),
 		DataDir:     firstNonEmpty(os.Getenv("AGENT_DATA_DIR"), dataDir, DefaultDataDir),
 		LogDir:      firstNonEmpty(os.Getenv("AGENT_LOG_DIR"), logDir, DefaultLogDir),
+		ComposeDir:  firstNonEmpty(os.Getenv("AGENT_COMPOSE_DIR"), "/opt/docker-manager"),
 		ComposeBin:  os.Getenv("AGENT_COMPOSE_BIN"),
 	}
 	if t := os.Getenv("AGENT_TOKEN"); t != "" {

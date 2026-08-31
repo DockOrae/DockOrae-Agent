@@ -8,6 +8,7 @@ import (
 	"runtime"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/DockOrae/DockOrae-Agent/internal/errs"
@@ -74,6 +75,89 @@ func (s *Service) Info() (map[string]any, error) {
 		},
 		"server_time": time.Now().Unix(),
 	}, nil
+}
+
+// 监控采样缓存(CPU 使用率需要两次采样做差值,与面板侧原实现同款)
+var (
+	monitorMu    sync.Mutex
+	monitorCPU   *[2]uint64 // (idle, total)
+	monitorCPUAt time.Time
+)
+
+// Monitor 监控快照(cpu_pct/mem/load/swap/disk;面板每 3 秒轮询)
+func (s *Service) Monitor() map[string]any {
+	// CPU 使用率(两次采样差值)
+	idle, total := s.cpuStat()
+	cpuPct := 0.0
+	monitorMu.Lock()
+	if monitorCPU != nil {
+		dTotal := total - monitorCPU[1]
+		dIdle := idle - monitorCPU[0]
+		if dTotal > 0 {
+			cpuPct = (1.0 - float64(dIdle)/float64(dTotal)) * 100.0
+		}
+	}
+	monitorCPU = &[2]uint64{idle, total}
+	monitorCPUAt = time.Now()
+	monitorMu.Unlock()
+
+	memTotal, memAvail := s.memInfo()
+	memUsed := uint64(0)
+	memPct := 0.0
+	if memTotal > 0 {
+		memUsed = memTotal - memAvail
+		memPct = pct(memUsed, memTotal)
+	}
+	diskTotal, diskUsed := s.diskRoot()
+	swapTotal, swapUsed := s.swapInfo()
+
+	return map[string]any{
+		"cpu_pct": round2(cpuPct),
+		"mem": map[string]any{
+			"total": memTotal, "used": memUsed, "pct": round2(memPct),
+		},
+		"load": s.loadAvg(),
+		"swap": map[string]any{
+			"total": swapTotal, "used": swapUsed, "pct": round2(pct(swapUsed, swapTotal)),
+		},
+		"disk": map[string]any{
+			"total": diskTotal, "used": diskUsed, "pct": round2(pct(diskUsed, diskTotal)),
+		},
+		"server_time": time.Now().Unix(),
+	}
+}
+
+// cpuStat 读取 (idle, total) CPU 时钟
+func (s *Service) cpuStat() (uint64, uint64) {
+	raw, err := s.Exec.Output("cat", "/proc/stat")
+	if err != nil {
+		return 0, 0
+	}
+	line := strings.SplitN(string(raw), "\n", 2)[0]
+	fields := strings.Fields(line)
+	if len(fields) < 5 {
+		return 0, 0
+	}
+	var parts []uint64
+	for _, f := range fields[1:] {
+		if v, err := strconv.ParseUint(f, 10, 64); err == nil {
+			parts = append(parts, v)
+		}
+	}
+	var total uint64
+	for _, v := range parts {
+		total += v
+	}
+	idle := parts[3]
+	if len(parts) > 4 {
+		idle += parts[4]
+	}
+	return idle, total
+}
+
+// round2 保留两位小数
+func round2(v float64) float64 {
+	return float64(int64(v*100+0.5)) / 100.0
 }
 
 // SetHostname 设置主机名并验证(§9)

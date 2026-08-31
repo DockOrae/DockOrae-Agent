@@ -37,8 +37,10 @@ DockOrae 的 **宿主机控制平面(Linux Host Control Plane)**。负责经过�
 | 系统更新(apt/apk) | 页面渲染 |
 | Docker 引擎状态与清理 | |
 | Compose 更新与回滚(digest 追踪) | |
+| 面板托管 Compose 执行(up/down/start/stop/logs) | |
+| 容器/镜像/网络/卷管理(§7-§10) | |
 | 自身 Binary 在线更新(自动回滚) | |
-| Disk / Sysctl(白名单) / Firewall / Network | |
+| Disk / Sysctl(白名单) / Network | |
 
 ## 安全模型
 
@@ -60,11 +62,13 @@ GET  /v1/system/info  GET/POST /v1/system/timezone  GET /v1/system/time  POST /v
 POST /v1/system/service {name,action}  GET /v1/system/update/check  POST /v1/system/update
 GET  /v1/swap/status  POST /v1/swap/create|resize|delete {size_mb,confirm}
 GET  /v1/docker/status|info|version  POST /v1/docker/service {action}  GET /v1/docker/cleanup/preview  POST /v1/docker/cleanup
+GET  /v1/docker/containers|images|networks|volumes(list/create/prune)  POST /v1/docker/containers/{id}/start|stop|restart|kill|pause|unpause|rename
+WS   /v1/docker/containers/{id}/logs|stats|terminal  WS /v1/docker/events
+POST /v1/compose/managed/up|pull|run|start|stop|restart|down|build(面板托管栈)  WS /v1/compose/managed/logs
 GET  /v1/compose/projects|status|check_update  POST /v1/compose/pull|update|rollback
 GET  /v1/binary/status  POST /v1/binary/check_update|download|install|rollback
 GET  /v1/disk/usage|devices|mounts
 GET  /v1/sysctl/get  POST /v1/sysctl/set(白名单)
-GET  /v1/firewall/status|rules  POST /v1/firewall/add|delete
 GET  /v1/network/interfaces|routes|dns
 ```
 
