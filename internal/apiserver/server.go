@@ -210,7 +210,9 @@ func (s *Server) registerWS(method, pattern string, h WsHandler) {
 	s.wsRoutes = append(s.wsRoutes, wsRoute{method: method, pattern: pattern, handler: h})
 }
 
-// authorize Bearer token 认证(常量时间比较,防时序侧信道)
+// authorize Bearer token 认证(常量时间比较,防时序侧信道)。
+// token 不匹配时重读共享 token 文件再比一次:面板启动/轮换 token 的竞态自愈
+// (面板每次启动都会把 settings.agentToken 写回 /run/dockorae/agent.token)。
 func (s *Server) authorize(w http.ResponseWriter, r *http.Request) bool {
 	auth := r.Header.Get("Authorization")
 	const prefix = "Bearer "
@@ -220,6 +222,16 @@ func (s *Server) authorize(w http.ResponseWriter, r *http.Request) bool {
 	}
 	token := strings.TrimSpace(auth[len(prefix):])
 	if !constantTimeEqual(token, s.Cfg.Token) {
+		// 重读 token 文件(面板可能刚写入/轮换);文件由 root 持有(0640),仅面板可改
+		if s.Cfg.TokenFile != "" {
+			if b, err := os.ReadFile(s.Cfg.TokenFile); err == nil {
+				fileToken := strings.TrimSpace(string(b))
+				if fileToken != "" && constantTimeEqual(token, fileToken) {
+					s.Cfg.Token = fileToken // 与文件对齐,后续请求直接匹配
+					return true
+				}
+			}
+		}
 		writeRawError(w, http.StatusUnauthorized, "UNAUTHORIZED", "认证 token 无效")
 		return false
 	}
