@@ -1,0 +1,7 @@
+# 统一 LF 换行,防止 Windows 检出 CRLF 破坏 Linux 构建(go fmt 校验)
+* text=auto eol=lf
+*.go text eol=lf
+*.sh text eol=lf
+*.yml text eol=lf
+*.yaml text eol=lf
+*.md text eol=lf
