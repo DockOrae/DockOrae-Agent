@@ -16,14 +16,14 @@ var wsUpgrader = websocket.Upgrader{
 	WriteBufferSize: 4096,
 }
 
-// wsRoute WS 路由(pattern 支持 :param 段)
+// wsRoute WS 路由(pattern 支持 {param} 段)
 type wsRoute struct {
 	method  string
 	pattern string
 	handler func(c *Ctx, conn *websocket.Conn) error
 }
 
-// match 匹配 method + 路径,返回路径参数
+// match 匹配 method + 路径,返回路径参数(与普通路由同一 {param} 语法)
 func (r *wsRoute) match(method, path string) (map[string]string, bool) {
 	if r.method != method {
 		return nil, false
@@ -35,8 +35,8 @@ func (r *wsRoute) match(method, path string) (map[string]string, bool) {
 	}
 	params := map[string]string{}
 	for i := range pat {
-		if strings.HasPrefix(pat[i], ":") {
-			params[pat[i][1:]] = seg[i]
+		if strings.HasPrefix(pat[i], "{") && strings.HasSuffix(pat[i], "}") {
+			params[pat[i][1:len(pat[i])-1]] = seg[i]
 			continue
 		}
 		if pat[i] != seg[i] {
