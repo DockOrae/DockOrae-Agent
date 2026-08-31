@@ -35,10 +35,10 @@ type Config struct {
 // Load 从环境变量 + 命令行参数组装配置
 func Load(socket, token, dataDir, logDir string, hostMode bool) *Config {
 	c := &Config{
-		SocketPath:  envOr("AGENT_SOCKET", socket, DefaultSocketPath),
-		SocketGroup: envOr("AGENT_GROUP", "", DefaultGroup),
-		DataDir:     envOr("AGENT_DATA_DIR", dataDir, DefaultDataDir),
-		LogDir:      envOr("AGENT_LOG_DIR", logDir, DefaultLogDir),
+		SocketPath:  firstNonEmpty(os.Getenv("AGENT_SOCKET"), socket, DefaultSocketPath),
+		SocketGroup: firstNonEmpty(os.Getenv("AGENT_GROUP"), DefaultGroup),
+		DataDir:     firstNonEmpty(os.Getenv("AGENT_DATA_DIR"), dataDir, DefaultDataDir),
+		LogDir:      firstNonEmpty(os.Getenv("AGENT_LOG_DIR"), logDir, DefaultLogDir),
 		ComposeBin:  os.Getenv("AGENT_COMPOSE_BIN"),
 		UpdateAPI:   os.Getenv("DM_UPDATE_API"),
 	}
@@ -47,20 +47,23 @@ func Load(socket, token, dataDir, logDir string, hostMode bool) *Config {
 	} else if token != "" {
 		c.Token = token
 	}
-	c.TokenFile = envOr("AGENT_TOKEN_FILE", "", DefaultTokenFile)
+	c.TokenFile = firstNonEmpty(os.Getenv("AGENT_TOKEN_FILE"), DefaultTokenFile)
 	c.SocketDir = filepath.Dir(c.SocketPath)
 	c.InContainer = !hostMode && detectContainer()
 	return c
 }
 
-func envOr(keys ...string) string {
-	for _, k := range keys {
-		if v := os.Getenv(k); v != "" {
+// firstNonEmpty 返回第一个非空值;全部为空返回最后一个(默认值)
+func firstNonEmpty(vals ...string) string {
+	for _, v := range vals {
+		if v != "" {
 			return v
 		}
 	}
-	// 最后一个参数为默认值
-	return keys[len(keys)-1]
+	if len(vals) == 0 {
+		return ""
+	}
+	return vals[len(vals)-1]
 }
 
 // detectContainer 容器检测:/.dockerenv 或 cgroup 含 docker/kubepods 段
