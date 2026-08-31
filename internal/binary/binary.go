@@ -78,9 +78,9 @@ type State struct {
 
 // 常量
 const (
-	// UpdateRepo 更新来源仓库
-	UpdateRepo = "DockOrae/DockOrae-Agent"
-	// UpdateGitHubURL 默认检测 API(GitHub releases latest)
+	// UpdateRepo 更新来源仓库:DockOrae 主项目 release(资产 dockorae-agent-linux-*.tar.gz 随主项目发布)
+	UpdateRepo = "DockOrae/DockOrae"
+	// UpdateGitHubURL 更新检测 API(GitHub releases latest)
 	UpdateGitHubURL = "https://api.github.com/repos/" + UpdateRepo + "/releases/latest"
 	// BinaryName 二进制名(与发布资产内一致)
 	BinaryName = "dockorae-agent"
@@ -99,14 +99,6 @@ func NewState(cfg *config.Config) *State {
 	s := &State{cfg: cfg, exec: hostexec.New(cfg.InContainer, cfg.ComposeBin)}
 	s.load()
 	return s
-}
-
-// CheckURL 更新检测地址(DM_UPDATE_API 可覆盖,测试用)
-func (s *State) CheckURL() string {
-	if s.cfg.UpdateAPI != "" {
-		return s.cfg.UpdateAPI
-	}
-	return UpdateGitHubURL
 }
 
 // CurrentVersion 当前版本
@@ -198,11 +190,11 @@ type releaseMeta struct {
 	} `json:"assets"`
 }
 
-// fetchRelease 拉取 release 元数据(CheckURL = DM_UPDATE_API 或 GitHub latest)
+// fetchRelease 拉取 release 元数据(固定 GitHub DockOrae/DockOrae releases/latest)
 func (s *State) fetchRelease(ctx context.Context) (*releaseMeta, error) {
 	checkCtx, cancel := context.WithTimeout(ctx, 15*time.Second)
 	defer cancel()
-	req, err := http.NewRequestWithContext(checkCtx, http.MethodGet, s.CheckURL(), nil)
+	req, err := http.NewRequestWithContext(checkCtx, http.MethodGet, UpdateGitHubURL, nil)
 	if err != nil {
 		return nil, errs.Newf(errs.UPDATE_DOWNLOAD_FAILED, "构造请求失败: %v", err)
 	}
@@ -258,22 +250,9 @@ func (s *State) Download(ctx context.Context, tag string) (string, string, error
 		return "", "", errs.Newf(errs.UNSUPPORTED, "不支持的架构: %s", arch)
 	}
 	pkg := fmt.Sprintf("%s-linux-%s.tar.gz", BinaryName, arch)
-	// 资产 URL:自定义源(DM_UPDATE_API)时从 release JSON 的 browser_download_url 解析;
-	// 默认走 GitHub releases 固定路径
-	var base, sumURL string
-	if s.cfg.UpdateAPI != "" {
-		rel, err := s.fetchRelease(ctx)
-		if err != nil {
-			return "", "", err
-		}
-		base, sumURL = findAssetURLs(pkg, rel.Assets)
-		if base == "" {
-			return "", "", errs.Newf(errs.UPDATE_DOWNLOAD_FAILED, "release %s 中未找到资产 %s", tag, pkg)
-		}
-	} else {
-		base = fmt.Sprintf("https://github.com/%s/releases/download/%s/%s", UpdateRepo, tag, pkg)
-		sumURL = base + ".sha256"
-	}
+	// 资产固定从项目 GitHub releases 下载(https://github.com/DockOrae/DockOrae/releases)
+	base := fmt.Sprintf("https://github.com/%s/releases/download/%s/%s", UpdateRepo, tag, pkg)
+	sumURL := base + ".sha256"
 
 	client := &http.Client{Timeout: 300 * time.Second}
 	resp, err := client.Get(base)

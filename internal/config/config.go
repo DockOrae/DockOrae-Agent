@@ -29,7 +29,6 @@ type Config struct {
 	LogDir      string // 审计日志目录
 	InContainer bool   // 容器内运行(经 nsenter 操作宿主)
 	ComposeBin  string // compose 命令("docker compose" 或 "docker-compose";默认自动探测)
-	UpdateAPI   string // 更新检测 API(GitHub releases),DM_UPDATE_API 可覆盖
 }
 
 // Load 从环境变量 + 命令行参数组装配置
@@ -40,7 +39,6 @@ func Load(socket, token, dataDir, logDir string, hostMode bool) *Config {
 		DataDir:     firstNonEmpty(os.Getenv("AGENT_DATA_DIR"), dataDir, DefaultDataDir),
 		LogDir:      firstNonEmpty(os.Getenv("AGENT_LOG_DIR"), logDir, DefaultLogDir),
 		ComposeBin:  os.Getenv("AGENT_COMPOSE_BIN"),
-		UpdateAPI:   os.Getenv("DM_UPDATE_API"),
 	}
 	if t := os.Getenv("AGENT_TOKEN"); t != "" {
 		c.Token = t
