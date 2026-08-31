@@ -173,33 +173,9 @@ func (s *State) CheckUpdate(ctx context.Context) (map[string]any, error) {
 	cur := s.CurrentVersion()
 	info := map[string]any{"current": cur}
 
-	checkCtx, cancel := context.WithTimeout(ctx, 15*time.Second)
-	defer cancel()
-	req, err := http.NewRequestWithContext(checkCtx, http.MethodGet, s.CheckURL(), nil)
+	rel, err := s.fetchRelease(ctx)
 	if err != nil {
-		return info, errs.Newf(errs.UPDATE_DOWNLOAD_FAILED, "构造请求失败: %v", err)
-	}
-	req.Header.Set("Accept", "application/vnd.github+json")
-	req.Header.Set("User-Agent", "dockorae-agent/"+cur)
-	resp, err := http.DefaultClient.Do(req)
-	if err != nil {
-		return info, errs.Newf(errs.UPDATE_DOWNLOAD_FAILED, "检测更新失败: %v", err)
-	}
-	defer resp.Body.Close()
-	if resp.StatusCode != http.StatusOK {
-		return info, errs.Newf(errs.UPDATE_DOWNLOAD_FAILED, "检测更新失败: HTTP %d", resp.StatusCode)
-	}
-	var rel struct {
-		TagName    string `json:"tag_name"`
-		Draft      bool   `json:"draft"`
-		Prerelease bool   `json:"prerelease"`
-		Assets     []struct {
-			Name               string `json:"name"`
-			BrowserDownloadURL string `json:"browser_download_url"`
-		} `json:"assets"`
-	}
-	if err := json.NewDecoder(io.LimitReader(resp.Body, 4<<20)).Decode(&rel); err != nil || rel.TagName == "" {
-		return info, errs.Newf(errs.UPDATE_DOWNLOAD_FAILED, "release 数据无效")
+		return info, err
 	}
 	info["latest"] = rel.TagName
 	info["has_update"] = CompareVersions(cur, rel.TagName) < 0
@@ -210,6 +186,58 @@ func (s *State) CheckUpdate(ctx context.Context) (map[string]any, error) {
 	info["asset"] = asset
 	info["checksum_asset"] = sumAsset
 	return info, nil
+}
+
+// releaseMeta 远端 release 元数据
+type releaseMeta struct {
+	TagName string `json:"tag_name"`
+	Draft   bool   `json:"draft"`
+	Assets  []struct {
+		Name               string `json:"name"`
+		BrowserDownloadURL string `json:"browser_download_url"`
+	} `json:"assets"`
+}
+
+// fetchRelease 拉取 release 元数据(CheckURL = DM_UPDATE_API 或 GitHub latest)
+func (s *State) fetchRelease(ctx context.Context) (*releaseMeta, error) {
+	checkCtx, cancel := context.WithTimeout(ctx, 15*time.Second)
+	defer cancel()
+	req, err := http.NewRequestWithContext(checkCtx, http.MethodGet, s.CheckURL(), nil)
+	if err != nil {
+		return nil, errs.Newf(errs.UPDATE_DOWNLOAD_FAILED, "构造请求失败: %v", err)
+	}
+	req.Header.Set("Accept", "application/vnd.github+json")
+	req.Header.Set("User-Agent", "dockorae-agent/"+s.CurrentVersion())
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		return nil, errs.Newf(errs.UPDATE_DOWNLOAD_FAILED, "检测更新失败: %v", err)
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusOK {
+		return nil, errs.Newf(errs.UPDATE_DOWNLOAD_FAILED, "检测更新失败: HTTP %d", resp.StatusCode)
+	}
+	var rel releaseMeta
+	if err := json.NewDecoder(io.LimitReader(resp.Body, 4<<20)).Decode(&rel); err != nil || rel.TagName == "" {
+		return nil, errs.Newf(errs.UPDATE_DOWNLOAD_FAILED, "release 数据无效")
+	}
+	return &rel, nil
+}
+
+// findAssetURLs 在 release 资产中查找包与校验和文件的下载 URL
+func findAssetURLs(pkg string, assets []struct {
+	Name               string `json:"name"`
+	BrowserDownloadURL string `json:"browser_download_url"`
+}) (string, string) {
+	var base, sumURL string
+	for _, a := range assets {
+		switch a.Name {
+		case pkg:
+			base = a.BrowserDownloadURL
+		case pkg + ".sha256":
+			sumURL = a.BrowserDownloadURL
+		}
+	}
+	return base, sumURL
 }
 
 // Download 下载目标版本资产(返回本地临时文件路径 + 校验和资产路径;不安装)
@@ -230,7 +258,22 @@ func (s *State) Download(ctx context.Context, tag string) (string, string, error
 		return "", "", errs.Newf(errs.UNSUPPORTED, "不支持的架构: %s", arch)
 	}
 	pkg := fmt.Sprintf("%s-linux-%s.tar.gz", BinaryName, arch)
-	base := fmt.Sprintf("https://github.com/%s/releases/download/%s/%s", UpdateRepo, tag, pkg)
+	// 资产 URL:自定义源(DM_UPDATE_API)时从 release JSON 的 browser_download_url 解析;
+	// 默认走 GitHub releases 固定路径
+	var base, sumURL string
+	if s.cfg.UpdateAPI != "" {
+		rel, err := s.fetchRelease(ctx)
+		if err != nil {
+			return "", "", err
+		}
+		base, sumURL = findAssetURLs(pkg, rel.Assets)
+		if base == "" {
+			return "", "", errs.Newf(errs.UPDATE_DOWNLOAD_FAILED, "release %s 中未找到资产 %s", tag, pkg)
+		}
+	} else {
+		base = fmt.Sprintf("https://github.com/%s/releases/download/%s/%s", UpdateRepo, tag, pkg)
+		sumURL = base + ".sha256"
+	}
 
 	client := &http.Client{Timeout: 300 * time.Second}
 	resp, err := client.Get(base)
@@ -251,7 +294,6 @@ func (s *State) Download(ctx context.Context, tag string) (string, string, error
 		os.Remove(tmp.Name())
 		return "", "", errs.Newf(errs.UPDATE_DOWNLOAD_FAILED, "下载中断: %v", err)
 	}
-	sumURL := base + ".sha256"
 	sumTmp := tmp.Name() + ".sha256"
 	// 校验文件下载失败(老 release 无该资产)不阻塞主流程
 	if sumResp, err := client.Get(sumURL); err == nil {

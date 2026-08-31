@@ -408,7 +408,8 @@ func parseComposeImages(out []byte) ([]ServiceRecord, error) {
 	return recs, nil
 }
 
-// healthCheck 基本健康检查:等待所有服务容器进入 running 状态(最多 60 秒)
+// healthCheck 基本健康检查:等待所有服务容器进入 running 状态(最多 60 秒)。
+// 命中 running 后再隔 3 秒复查一次,防"启动即退出"竞态(如 busybox exit 1)。
 func (s *Service) healthCheck(project, configs string) error {
 	deadline := time.Now().Add(60 * time.Second)
 	for time.Now().Before(deadline) {
@@ -425,13 +426,29 @@ func (s *Service) healthCheck(project, configs string) error {
 					}
 				}
 				if allUp {
-					return nil
+					// 稳定性复查:3 秒后容器仍在运行才算健康
+					time.Sleep(3 * time.Second)
+					if out2, err2 := s.Exec.ComposeOutput(15*time.Second, "-p", project, "-f", configs, "ps", "--format", "json"); err2 == nil {
+						cs2 := parseComposePS(out2)
+						stillUp := len(cs2) > 0
+						for _, c := range cs2 {
+							st, _ := c["State"].(string)
+							if !strings.EqualFold(st, "running") {
+								stillUp = false
+								break
+							}
+						}
+						if stillUp {
+							return nil
+						}
+					}
+					// 复查未通过:继续轮询直至超时
 				}
 			}
 		}
 		time.Sleep(3 * time.Second)
 	}
-	return fmt.Errorf("容器未在 60 秒内全部进入 running 状态")
+	return fmt.Errorf("容器未在 60 秒内稳定进入 running 状态")
 }
 
 // parseComposePS 解析 compose ps --format json 输出。

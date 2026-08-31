@@ -83,6 +83,13 @@ func (s *Server) handleBinaryInstall(c *Ctx) error {
 	start := now()
 	// 若未预下载(直接安装),先下载+校验
 	pkg, sum := s.BinState.Pending()
+	tag := req.Version
+	if pkg != "" {
+		// 预下载场景:目标版本以下载时记录为准(客户端可能只发 confirm)
+		if v := s.BinState.Info().Version; v != "" {
+			tag = v
+		}
+	}
 	if pkg == "" {
 		var derr error
 		pkg, sum, derr = s.BinState.Download(context.Background(), req.Version)
@@ -95,7 +102,7 @@ func (s *Server) handleBinaryInstall(c *Ctx) error {
 		c.Audit("binary.install", req.Version, start, err, "", nil)
 		return err
 	}
-	err := s.BinState.Install(context.Background(), pkg, sum, req.Version)
+	err := s.BinState.Install(context.Background(), pkg, sum, tag)
 	// 安装失败时回滚(§26)
 	rollback := ""
 	if err != nil {
