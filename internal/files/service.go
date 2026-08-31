@@ -92,31 +92,39 @@ func (s *Service) run(op string, args any, stdin io.Reader) ([]byte, error) {
 	}
 	out, err := runWithTimeout(cmd, 600*time.Second)
 	if err != nil {
-		// fsop 失败时信封已在 stdout;解析出业务错误码
-		if _, parseErr := envelopeData(out); parseErr == nil {
-			return nil, dataErr(out)
+		// fsop 失败时错误信封已在 stdout;直接解析业务错误码。
+		// 注意:不能用 envelopeData 判空(ok:false 时它返回的正是业务错误,非 nil)。
+		if envErr := dataErr(out); envErr != nil {
+			return nil, envErr
 		}
 		return nil, errs.Newf(errs.INTERNAL, "宿主文件操作失败: %v %s", err, bytes.TrimSpace(out))
 	}
 	return envelopeData(out)
 }
 
-// envelopeData 解析 {ok,data} 信封,返回 data 字节
+// envelopeData 解析 {ok,data} 信封;ok:false 时返回信封内业务错误
 func envelopeData(raw []byte) ([]byte, error) {
 	var env struct {
 		OK   bool            `json:"ok"`
 		Data json.RawMessage `json:"data"`
+		Err  *struct {
+			Code    string `json:"code"`
+			Message string `json:"message"`
+		} `json:"error"`
 	}
 	if err := json.Unmarshal(raw, &env); err != nil {
 		return nil, errs.New(errs.INTERNAL, "宿主文件操作响应无效")
 	}
 	if !env.OK {
-		return nil, dataErr(raw)
+		if env.Err != nil {
+			return nil, errs.New(env.Err.Code, env.Err.Message)
+		}
+		return nil, errs.New(errs.INTERNAL, "宿主文件操作失败")
 	}
 	return env.Data, nil
 }
 
-// dataErr 从错误信封构造 errs.Error
+// dataErr 从错误信封构造业务错误;非错误信封返回 nil(调用方兜底 INTERNAL)
 func dataErr(raw []byte) error {
 	var env struct {
 		Error *struct {
@@ -127,7 +135,7 @@ func dataErr(raw []byte) error {
 	if json.Unmarshal(raw, &env) == nil && env.Error != nil {
 		return errs.New(env.Error.Code, env.Error.Message)
 	}
-	return errs.New(errs.INTERNAL, "宿主文件操作失败")
+	return nil
 }
 
 // call 执行操作并把 data 解码到 out
