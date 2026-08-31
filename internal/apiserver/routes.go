@@ -92,6 +92,7 @@ func (s *Server) registerRoutes() {
 	s.register("POST", "/v1/compose/managed/build", s.handleComposeManagedBuild)
 
 	// ---------- 宿主 compose 管理(面板自身部署栈更新/回滚) ----------
+	s.register("GET", "/v1/panel/compose", s.handlePanelCompose) // 面板在线更新读取宿主 compose
 	s.register("GET", "/v1/compose/projects", s.handleComposeProjects)
 	s.register("GET", "/v1/compose/status", s.handleComposeStatus)
 	s.register("GET", "/v1/compose/check_update", s.handleComposeCheckUpdate)
