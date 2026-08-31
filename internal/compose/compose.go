@@ -182,19 +182,8 @@ func (s *Service) Status(project string) (map[string]any, error) {
 	containers := parseComposePS(psOut)
 	var images []ServiceRecord
 	if len(imgOut) > 0 {
-		var raw []struct {
-			ID            string `json:"ID"`
-			ContainerName string `json:"ContainerName"`
-			Repository    string `json:"Repository"`
-			Tag           string `json:"Tag"`
-		}
-		_ = json.Unmarshal(imgOut, &raw)
-		for _, r := range raw {
-			img := r.Repository
-			if r.Tag != "" {
-				img += ":" + r.Tag
-			}
-			images = append(images, ServiceRecord{Service: r.ContainerName, Image: img, Digest: r.ID})
+		if recs, err := parseComposeImages(imgOut); err == nil {
+			images = recs
 		}
 	}
 	return map[string]any{
@@ -369,14 +358,26 @@ func (s *Service) History(project string) ([]UpdateRecord, error) {
 // ---------- 内部 ----------
 
 // serviceDigests 读取各服务当前镜像 digest。
-// 仅支持新版 compose 输出格式(ContainerName/Repository/Tag/ID);
+// 兼容新旧两种 compose 输出格式:
+//   - 新版(v2.30+ / v5.x):ContainerName/Repository/Tag/ID
+//   - 旧版:Service/Image/Digest
+//
 // ID 即 sha256 镜像 ID,可反映内容更新。
 func (s *Service) serviceDigests(project, configs string) ([]ServiceRecord, error) {
 	out, err := s.Exec.ComposeOutput(30*time.Second, "-p", project, "-f", configs, "images", "--format", "json")
 	if err != nil {
 		return nil, err
 	}
+	return parseComposeImages(out)
+}
+
+// parseComposeImages 解析 compose images --format json 输出,兼容新旧两种字段形态。
+// 新版字段优先(ContainerName/Repository/Tag/ID),旧版字段(Service/Image/Digest)回退。
+func parseComposeImages(out []byte) ([]ServiceRecord, error) {
 	var raw []struct {
+		Service       string `json:"Service"`
+		Image         string `json:"Image"`
+		Digest        string `json:"Digest"`
 		ID            string `json:"ID"`
 		ContainerName string `json:"ContainerName"`
 		Repository    string `json:"Repository"`
@@ -387,11 +388,22 @@ func (s *Service) serviceDigests(project, configs string) ([]ServiceRecord, erro
 	}
 	recs := make([]ServiceRecord, 0, len(raw))
 	for _, r := range raw {
-		img := r.Repository
-		if r.Tag != "" {
-			img += ":" + r.Tag
+		svc := r.Service
+		if svc == "" {
+			svc = r.ContainerName
 		}
-		recs = append(recs, ServiceRecord{Service: r.ContainerName, Image: img, Digest: r.ID})
+		img := r.Image
+		if img == "" {
+			img = r.Repository
+			if r.Tag != "" {
+				img += ":" + r.Tag
+			}
+		}
+		dg := r.Digest
+		if dg == "" {
+			dg = r.ID
+		}
+		recs = append(recs, ServiceRecord{Service: svc, Image: img, Digest: dg})
 	}
 	return recs, nil
 }
