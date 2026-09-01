@@ -131,7 +131,9 @@ func New(config Config) *Manager {
 
 // NewWithExec 构造管理器,Starter 经 execer(nsenter 前缀)在宿主命名空间启动 shell
 func NewWithExec(execer *hostexec.Execer, config Config) *Manager {
-	config.Starter = nil // 统一走默认 starter(带 execer)
+	// 必须显式用带 execer 的 starter:若交给 New() 的 nil fallback,
+	// shell 会在容器命名空间启动(hostname=容器ID,ls 看到容器 /root)
+	config.Starter = defaultStarter(config.ParentUnit, config.DefaultCWD, execer)
 	manager := New(config)
 	manager.execer = execer
 	return manager
