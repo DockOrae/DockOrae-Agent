@@ -71,18 +71,18 @@ const (
 
 // 宿主文件 / 终端错误码(§55 宿主文件管理器)
 const (
-	PATH_INVALID      = "PATH_INVALID"      // 路径非法/穿越
-	DANGEROUS_PATH    = "DANGEROUS_PATH"    // 危险系统目录,禁止该操作
-	FILE_EXISTS       = "FILE_EXISTS"       // 目标已存在
-	FILE_NOT_FOUND    = "FILE_NOT_FOUND"    // 文件/目录不存在
-	FILE_TOO_LARGE    = "FILE_TOO_LARGE"    // 超出大小限制
-	UNSUPPORTED_ARCH  = "UNSUPPORTED_ARCH"  // 不支持的压缩格式
-	PTY_UNAVAILABLE   = "PTY_UNAVAILABLE"   // PTY 不可用(仅 Linux 宿主支持)
-	TERMINAL_SESSION  = "TERMINAL_SESSION"  // 终端会话错误
-	ARCHIVE_LIMIT     = "ARCHIVE_LIMIT"     // 压缩/解压资源超限(§20)
-	COPY_LIMIT        = "COPY_LIMIT"        // 复制资源超限(§20)
-	TERMINAL_LIMIT    = "TERMINAL_LIMIT"    // 终端会话数/速率超限(§20)
-	UPLOAD_LIMIT      = "UPLOAD_LIMIT"      // 上传大小超限(§20)
+	PATH_INVALID     = "PATH_INVALID"     // 路径非法/穿越
+	DANGEROUS_PATH   = "DANGEROUS_PATH"   // 危险系统目录,禁止该操作
+	FILE_EXISTS      = "FILE_EXISTS"      // 目标已存在
+	FILE_NOT_FOUND   = "FILE_NOT_FOUND"   // 文件/目录不存在
+	FILE_TOO_LARGE   = "FILE_TOO_LARGE"   // 超出大小限制
+	UNSUPPORTED_ARCH = "UNSUPPORTED_ARCH" // 不支持的压缩格式
+	PTY_UNAVAILABLE  = "PTY_UNAVAILABLE"  // PTY 不可用(仅 Linux 宿主支持)
+	TERMINAL_SESSION = "TERMINAL_SESSION" // 终端会话错误
+	ARCHIVE_LIMIT    = "ARCHIVE_LIMIT"    // 压缩/解压资源超限(§20)
+	COPY_LIMIT       = "COPY_LIMIT"       // 复制资源超限(§20)
+	TERMINAL_LIMIT   = "TERMINAL_LIMIT"   // 终端会话数/速率超限(§20)
+	UPLOAD_LIMIT     = "UPLOAD_LIMIT"     // 上传大小超限(§20)
 )
 
 // Error Agent 统一错误

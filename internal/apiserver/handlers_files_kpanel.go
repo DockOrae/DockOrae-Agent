@@ -1,17 +1,19 @@
 // 宿主文件管理 HTTP 端点(自 KPanel internal/agent/files.go 移植,2026-09-02)。
 // 与 KPanel 端点/参数/响应完全一致,仅底层改为 filemgr 重执行(容器 nsenter 架构)。
 // 端点:
-//   GET  /v1/files                → 目录列表(path/limit/offset/search)
-//   GET  /v1/files/entry          → 单条目属性(path)
-//   POST /v1/files/entries        → 批量属性(paths)
-//   GET  /v1/files/trash          → 回收站列表
-//   GET  /v1/files/content        → 读文件/下载(path/disposition/mode/version)
-//   PUT  /v1/files/content        → 写文件(path, JSON {content,expectedResourceVersion})
-//   GET  /v1/files/archive        → 压缩下载(selection JSON + name)
-//   GET  /v1/files/text           → 文本读取(≤64KiB)
-//   GET  /v1/files/tail           → 文本尾部(≤64KiB)
-//   POST /v1/files/upload         → 上传(path/name/overwrite, octet-stream)
-//   POST /v1/files/actions        → 批量操作(mkdir/rename/copy/move/trash/chmod/compress/extract/trash_*)
+//
+//	GET  /v1/files                → 目录列表(path/limit/offset/search)
+//	GET  /v1/files/entry          → 单条目属性(path)
+//	POST /v1/files/entries        → 批量属性(paths)
+//	GET  /v1/files/trash          → 回收站列表
+//	GET  /v1/files/content        → 读文件/下载(path/disposition/mode/version)
+//	PUT  /v1/files/content        → 写文件(path, JSON {content,expectedResourceVersion})
+//	GET  /v1/files/archive        → 压缩下载(selection JSON + name)
+//	GET  /v1/files/text           → 文本读取(≤64KiB)
+//	GET  /v1/files/tail           → 文本尾部(≤64KiB)
+//	POST /v1/files/upload         → 上传(path/name/overwrite, octet-stream)
+//	POST /v1/files/actions        → 批量操作(mkdir/rename/copy/move/trash/chmod/compress/extract/trash_*)
+//
 // 下载/上传/压缩为流式:经 nsenter cat/tar 子进程,面板侧透传。
 package apiserver
 

@@ -43,7 +43,8 @@ func DefaultConfig() Config {
 func noCtx() context.Context { return context.Background() }
 
 // FilemgrMain filemgr 子命令入口。op 与 KPanel 端点一一对应:
-//   list / entry / entries / trash / action / write_text / read(流式 stdout)
+//
+//	list / entry / entries / trash / action / write_text / read(流式 stdout)
 func FilemgrMain(args []string) int {
 	if len(args) < 1 {
 		writeFilemgrErr(os.Stdout, errs.New(errs.INVALID_REQUEST, "filemgr: 缺少操作"))

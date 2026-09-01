@@ -1,9 +1,11 @@
 // 宿主终端 HTTP 长轮询端点(照搬 KPanel 实现,2026-09-02):
-//   POST /v1/host/terminal                 → 打开会话(owner/rows/columns)→ Snapshot{id,offset,...}
-//   GET  /v1/host/terminal/{id}/output     → 长轮询输出(owner/offset/wait≤1500ms)→ Output{data,nextOffset,...}
-//   POST /v1/host/terminal/{id}/input      → 输入(base64 data)
-//   POST /v1/host/terminal/{id}/resize     → 调整尺寸(rows/columns)
-//   POST /v1/host/terminal/{id}/close      → 关闭会话
+//
+//	POST /v1/host/terminal                 → 打开会话(owner/rows/columns)→ Snapshot{id,offset,...}
+//	GET  /v1/host/terminal/{id}/output     → 长轮询输出(owner/offset/wait≤1500ms)→ Output{data,nextOffset,...}
+//	POST /v1/host/terminal/{id}/input      → 输入(base64 data)
+//	POST /v1/host/terminal/{id}/resize     → 调整尺寸(rows/columns)
+//	POST /v1/host/terminal/{id}/close      → 关闭会话
+//
 // 彻底替代旧 WS 终端(连接不稳定根因)。数据经环形缓冲 + offset 游标,
 // 空闲时 poll 阻塞最长 1500ms,天然免疫 WS 超时/热循环问题。
 package apiserver
