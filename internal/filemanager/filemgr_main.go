@@ -61,11 +61,28 @@ func FilemgrMain(args []string) int {
 		return 1
 	}
 	defer manager.Close()
+	// 流式操作(read/read_range/export_zip/upload)输出原始字节,其余输出 {ok,data} 信封
+	if isStreamOp(op) {
+		if err := filemgrStream(op, argJSON, os.Stdout, manager); err != nil {
+			writeFilemgrErr(os.Stdout, err)
+			return 1
+		}
+		return 0
+	}
 	if err := filemgrRun(op, argJSON, os.Stdin, os.Stdout, manager); err != nil {
 		writeFilemgrErr(os.Stdout, err)
 		return 1
 	}
 	return 0
+}
+
+// isStreamOp 判断操作是否流式(原始字节 stdout,非 {ok,data} 信封)
+func isStreamOp(op string) bool {
+	switch op {
+	case "read", "read_range", "export_zip", "upload":
+		return true
+	}
+	return false
 }
 
 // filemgrRun 执行单个文件操作;stdout 收到 {ok,data} 信封(read 之外)。
