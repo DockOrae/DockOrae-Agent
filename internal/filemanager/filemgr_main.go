@@ -149,11 +149,20 @@ func filemgrRun(op string, argJSON []byte, stdin io.Reader, stdout io.Writer, ma
 		}
 		return ok(result)
 	case "write_text":
-		var a contract.FileWriteRequest
+		var a struct {
+			Path                    string `json:"path"`
+			Content                 string `json:"content"`
+			ExpectedResourceVersion string `json:"expectedResourceVersion"`
+		}
 		if err := dec(&a); err != nil {
 			return errs.New(errs.INVALID_REQUEST, "filemgr write_text: 参数无效")
 		}
-		entry, err := manager.WriteText(noCtx(), "", a)
+		if strings.TrimSpace(a.Path) == "" {
+			return errs.New(errs.INVALID_REQUEST, "filemgr write_text: 缺少 path")
+		}
+		entry, err := manager.WriteText(noCtx(), a.Path, contract.FileWriteRequest{
+			Content: a.Content, ExpectedResourceVersion: a.ExpectedResourceVersion,
+		})
 		if err != nil {
 			return err
 		}
