@@ -51,7 +51,7 @@ type Config struct {
 	IdleTimeout      time.Duration
 	Lifetime         time.Duration
 	Now              func() time.Time
-	// DefaultCWD 默认工作目录(空 = /root;KPanel 无此字段,DockOrae 扩展:
+	// DefaultCWD 默认工作目录(空 = /root;DockOrae 无此字段,DockOrae 扩展:
 	// 文件管理器「在终端打开」需指定目录)
 	DefaultCWD string
 }
@@ -182,7 +182,7 @@ func terminalEnvironment(shell string) []string {
 	}
 }
 
-// Open 打开会话(KPanel 同款签名)
+// Open 打开会话(DockOrae 同款签名)
 func (m *Manager) Open(owner string, rows, columns uint16) (Snapshot, error) {
 	return m.open(owner, rows, columns, m.config.DefaultCWD)
 }

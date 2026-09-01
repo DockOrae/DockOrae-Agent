@@ -170,7 +170,7 @@ func (m *Manager) ImportDirectory(
 		return contract.FileEntry{}, err
 	}
 
-	tempVirtual := joinVirtual(normalizedTarget, ".kpanel-extract-"+randomID())
+	tempVirtual := joinVirtual(normalizedTarget, ".dockorae-extract-"+randomID())
 	if err := m.rootFS.Mkdir(rootName(tempVirtual), 0700); err != nil {
 		return contract.FileEntry{}, err
 	}

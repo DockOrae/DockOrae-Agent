@@ -1,7 +1,7 @@
 // filemgr 子命令入口(经 nsenter 重新执行自身时调用;Direct 模式由 Service 进程内调用)。
 // 用法: dockorae-agent filemgr <op> <jsonArgs>
 // 输出: 正常 {"ok":true,"data":...};失败 {"ok":false,"error":{"code","message"}} + 退出码 1。
-// 自 KPanel internal/agent/files.go 移植(2026-09-02):文件操作逻辑与 KPanel 完全一致,
+// 自 DockOrae internal/agent/files.go 移植(2026-09-02):文件操作逻辑与 DockOrae 完全一致,
 // 仅把"进程内常驻 Manager"改为"每次操作重执行构造 Manager"以适配容器 nsenter 架构。
 package filemanager
 
@@ -17,7 +17,7 @@ import (
 	"github.com/DockOrae/DockOrae-Agent/internal/errs"
 )
 
-// DefaultConfig 默认管理器配置(KPanel 同款保护目录,替换为 DockOrae 自身目录)
+// DefaultConfig 默认管理器配置(DockOrae 同款保护目录,替换为 DockOrae 自身目录)
 func DefaultConfig() Config {
 	stateDirectory := os.Getenv("AGENT_DATA_DIR")
 	trashDirectory := "/var/lib/dockorae-agent/file-trash"
@@ -42,7 +42,7 @@ func DefaultConfig() Config {
 
 func noCtx() context.Context { return context.Background() }
 
-// FilemgrMain filemgr 子命令入口。op 与 KPanel 端点一一对应:
+// FilemgrMain filemgr 子命令入口。op 与 DockOrae 端点一一对应:
 //
 //	list / entry / entries / trash / action / write_text / read(流式 stdout)
 func FilemgrMain(args []string) int {

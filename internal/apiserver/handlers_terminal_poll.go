@@ -1,4 +1,4 @@
-// 宿主终端 HTTP 长轮询端点(照搬 KPanel 实现,2026-09-02):
+// 宿主终端 HTTP 长轮询端点(2026-09-02 长轮询重构):
 //
 //	POST /v1/host/terminal                 → 打开会话(owner/rows/columns)→ Snapshot{id,offset,...}
 //	GET  /v1/host/terminal/{id}/output     → 长轮询输出(owner/offset/wait≤1500ms)→ Output{data,nextOffset,...}
@@ -184,7 +184,7 @@ func decodeTerminalInput(value string) ([]byte, error) {
 	return base64.StdEncoding.DecodeString(value)
 }
 
-// rawJSON 裸 JSON 响应(终端协议数据不走统一 ok 信封,KPanel 同款)
+// rawJSON 裸 JSON 响应(终端协议数据不走统一 ok 信封)
 func (c *Ctx) rawJSON(status int, v any) error {
 	b, err := json.Marshal(v)
 	if err != nil {

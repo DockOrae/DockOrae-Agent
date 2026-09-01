@@ -1,5 +1,5 @@
-// 宿主文件管理 HTTP 端点(自 KPanel internal/agent/files.go 移植,2026-09-02)。
-// 与 KPanel 端点/参数/响应完全一致,仅底层改为 filemgr 重执行(容器 nsenter 架构)。
+// 宿主文件管理 HTTP 端点(宿主文件端点,2026-09-02 移植重构)。
+// 端点/参数/响应对齐既定契约,底层经 filemgr 重执行(容器 nsenter 架构)。
 // 端点:
 //
 //	GET  /v1/files                → 目录列表(path/limit/offset/search)
@@ -488,7 +488,7 @@ func mimeFormatMediaType(disposition, name string) string {
 	return `attachment; filename="` + strings.ReplaceAll(name, `"`, `\"`) + `"`
 }
 
-// writeFileProblem 文件操作错误 → Problem 响应(错误码与 KPanel 一致)
+// writeFileProblem 文件操作错误 → Problem 响应(错误码与契约一致)
 func (s *Server) writeFileProblem(c *Ctx, err error) error {
 	status, code, title := http.StatusUnprocessableEntity, "file_operation_failed", "文件操作失败"
 	switch {

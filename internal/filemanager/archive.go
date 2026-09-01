@@ -183,7 +183,7 @@ func (m *Manager) compressArchive(
 		return contract.FileEntry{}, err
 	}
 
-	temp, tempVirtual, err := m.createTemp(normalizedTarget, ".kpanel-archive-")
+	temp, tempVirtual, err := m.createTemp(normalizedTarget, ".dockorae-archive-")
 	if err != nil {
 		return contract.FileEntry{}, err
 	}
@@ -453,7 +453,7 @@ func (m *Manager) extractArchive(
 		return contract.FileEntry{}, err
 	}
 
-	tempVirtual := joinVirtual(normalizedTarget, ".kpanel-extract-"+randomID())
+	tempVirtual := joinVirtual(normalizedTarget, ".dockorae-extract-"+randomID())
 	if err := m.rootFS.Mkdir(rootName(tempVirtual), 0700); err != nil {
 		return contract.FileEntry{}, err
 	}

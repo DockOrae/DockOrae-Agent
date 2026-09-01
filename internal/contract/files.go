@@ -1,4 +1,4 @@
-// Package contract 文件管理器数据契约(自 KPanel internal/contract/files.go 移植,2026-09-02)。
+// Package contract 文件管理器数据契约(自 DockOrae internal/contract/files.go 移植,2026-09-02)。
 package contract
 
 import "time"
@@ -32,7 +32,7 @@ type FileShareEntry struct {
 	ShareVersion string `json:"shareVersion"`
 }
 
-const FileShareVersionHeader = "X-KPanel-File-Share-Version"
+const FileShareVersionHeader = "X-DockOrae-File-Share-Version"
 
 type FileDirectory struct {
 	Path          string      `json:"path"`

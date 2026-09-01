@@ -14,7 +14,7 @@ import (
 
 // Execute Agent 启动入口(极薄,仅解析参数并拉起 API 服务)
 func Execute() {
-	// 隐藏子命令:filemgr(KPanel 移植的宿主文件管理器,经 nsenter 重执行进入宿主命名空间)
+	// 隐藏子命令:filemgr(宿主文件管理器(DockOrae 自研,nsenter 重执行),经 nsenter 重执行进入宿主命名空间)
 	if len(os.Args) > 1 && os.Args[1] == "filemgr" {
 		os.Exit(filemanager.FilemgrMain(os.Args[2:]))
 	}

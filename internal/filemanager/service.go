@@ -1,6 +1,6 @@
-// Service 文件管理器服务(自 KPanel filemanager.Manager 移植,2026-09-02)。
+// Service 文件管理器服务(自 DockOrae filemanager.Manager 移植,2026-09-02)。
 // Direct 模式:进程内构造 Manager 执行;Nsenter 模式:经 `nsenter ... -- <bin> filemgr`
-// 重新执行自身二进制进入宿主挂载命名空间 —— 两种模式共用 KPanel 同一套文件实现。
+// 重新执行自身二进制进入宿主挂载命名空间 —— 两种模式共用 DockOrae 同一套文件实现。
 package filemanager
 
 import (

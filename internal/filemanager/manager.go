@@ -40,7 +40,7 @@ const (
 
 var (
 	ErrInvalidPath     = errors.New("文件路径无效")
-	ErrProtected       = errors.New("KPanel 保护目录不可访问")
+	ErrProtected       = errors.New("DockOrae 保护目录不可访问")
 	ErrReadOnly        = errors.New("该系统目录仅支持查看，不能通过文件管理写入")
 	ErrSymlink         = errors.New("不允许通过符号链接访问文件")
 	ErrNotRegular      = errors.New("目标不是普通文件")
@@ -126,7 +126,7 @@ func New(config Config) (*Manager, error) {
 	}
 	trashVirtual := strings.TrimSpace(config.TrashVirtual)
 	if trashVirtual == "" {
-		trashVirtual = "/.kpanel-trash"
+		trashVirtual = "/.dockorae-trash"
 	}
 	trashVirtual, err = normalizeVirtual(trashVirtual)
 	if err != nil || trashVirtual == "/" {
@@ -439,7 +439,7 @@ func (m *Manager) WriteText(
 		return contract.FileEntry{}, ErrConflict
 	}
 	parentVirtual := path.Dir(normalized)
-	temp, tempVirtual, err := m.createTemp(parentVirtual, ".kpanel-edit-")
+	temp, tempVirtual, err := m.createTemp(parentVirtual, ".dockorae-edit-")
 	if err != nil {
 		return contract.FileEntry{}, err
 	}
@@ -522,7 +522,7 @@ func (m *Manager) Upload(
 	} else if !errors.Is(statErr, os.ErrNotExist) {
 		return contract.FileEntry{}, statErr
 	}
-	temp, tempVirtual, err := m.createTemp(normalizedDirectory, ".kpanel-upload-")
+	temp, tempVirtual, err := m.createTemp(normalizedDirectory, ".dockorae-upload-")
 	if err != nil {
 		return contract.FileEntry{}, err
 	}
@@ -765,7 +765,7 @@ func (m *Manager) ListTrash(ctx context.Context) (contract.FileTrashDirectory, e
 			return result, err
 		}
 		id := value.Name()
-		if validateTrashID(id) != nil || strings.HasPrefix(id, ".kpanel-") {
+		if validateTrashID(id) != nil || strings.HasPrefix(id, ".dockorae-") {
 			continue
 		}
 		info, statErr := m.rootFS.Lstat(rootName(joinVirtual(m.trashRoot, id)))
@@ -943,7 +943,7 @@ func (m *Manager) moveOne(
 			}
 			return contract.FileEntry{}, err
 		}
-		tempVirtual := joinVirtual(normalizedTarget, ".kpanel-copy-"+randomID())
+		tempVirtual := joinVirtual(normalizedTarget, ".dockorae-copy-"+randomID())
 		if err := m.copyTree(ctx, normalizedSource, tempVirtual, budget); err != nil {
 			_ = m.rootFS.RemoveAll(rootName(tempVirtual))
 			return contract.FileEntry{}, err
@@ -1012,7 +1012,7 @@ func (m *Manager) copyOne(
 	} else if !errors.Is(err, os.ErrNotExist) {
 		return contract.FileEntry{}, err
 	}
-	tempVirtual := joinVirtual(normalizedTarget, ".kpanel-copy-"+randomID())
+	tempVirtual := joinVirtual(normalizedTarget, ".dockorae-copy-"+randomID())
 	sourceInfo, err := m.rootFS.Lstat(rootName(normalizedSource))
 	if err != nil {
 		return contract.FileEntry{}, err
@@ -1083,7 +1083,7 @@ func (m *Manager) trashOne(
 		if !isCrossDeviceError(err) {
 			return "", err
 		}
-		tempVirtual := joinVirtual(m.trashRoot, ".kpanel-copy-"+randomID())
+		tempVirtual := joinVirtual(m.trashRoot, ".dockorae-copy-"+randomID())
 		if err := m.copyTree(ctx, normalized, tempVirtual, budget); err != nil {
 			_ = m.rootFS.RemoveAll(rootName(tempVirtual))
 			return "", err
@@ -1142,7 +1142,7 @@ func (m *Manager) writeTrashMetadata(metadata trashMetadata) error {
 	if err != nil {
 		return err
 	}
-	temp, tempVirtual, err := m.createTemp(m.trashInfo, ".kpanel-edit-")
+	temp, tempVirtual, err := m.createTemp(m.trashInfo, ".dockorae-edit-")
 	if err != nil {
 		return err
 	}
@@ -1198,7 +1198,7 @@ func (m *Manager) readTrashMetadata(id string) (trashMetadata, error) {
 
 func validateTrashID(id string) error {
 	if id == "" || len(id) > 255 || strings.ContainsAny(id, `/\\`) || strings.ContainsRune(id, 0) ||
-		id == "." || id == ".." || strings.HasPrefix(id, ".kpanel-") {
+		id == "." || id == ".." || strings.HasPrefix(id, ".dockorae-") {
 		return ErrInvalidPath
 	}
 	return nil
@@ -1278,7 +1278,7 @@ func (m *Manager) restoreTrash(
 		if !isCrossDeviceError(err) {
 			return contract.FileEntry{}, err
 		}
-		tempVirtual := joinVirtual(parentVirtual, ".kpanel-copy-"+randomID())
+		tempVirtual := joinVirtual(parentVirtual, ".dockorae-copy-"+randomID())
 		if err := m.copyTree(ctx, sourceVirtual, tempVirtual, budget); err != nil {
 			_ = m.rootFS.RemoveAll(rootName(tempVirtual))
 			return contract.FileEntry{}, err
@@ -1512,11 +1512,11 @@ func validateName(value string) error {
 }
 
 func isInternalComponent(value string) bool {
-	return strings.HasPrefix(value, ".kpanel-edit-") ||
-		strings.HasPrefix(value, ".kpanel-upload-") ||
-		strings.HasPrefix(value, ".kpanel-copy-") ||
-		strings.HasPrefix(value, ".kpanel-archive-") ||
-		strings.HasPrefix(value, ".kpanel-extract-")
+	return strings.HasPrefix(value, ".dockorae-edit-") ||
+		strings.HasPrefix(value, ".dockorae-upload-") ||
+		strings.HasPrefix(value, ".dockorae-copy-") ||
+		strings.HasPrefix(value, ".dockorae-archive-") ||
+		strings.HasPrefix(value, ".dockorae-extract-")
 }
 
 func joinVirtual(parent, name string) string {
@@ -1613,7 +1613,7 @@ func contentShareVersion(
 	}
 
 	versionDigest := sha256.New()
-	_, _ = io.WriteString(versionDigest, "kpanel:file-share:v2\x00")
+	_, _ = io.WriteString(versionDigest, "dockorae:file-share:v2\x00")
 	_, _ = io.WriteString(versionDigest, initialResourceVersion)
 	_, _ = versionDigest.Write([]byte{0})
 	_, _ = io.WriteString(versionDigest, initialIdentity)

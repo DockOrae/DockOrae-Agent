@@ -122,7 +122,7 @@ func (s *Server) registerRoutes() {
 	s.register("GET", "/v1/network/routes", s.handleNetworkRoutes)
 	s.register("GET", "/v1/network/dns", s.handleNetworkDNS)
 
-	// ---------- 宿主文件(§55:KPanel 移植端点,2026-09-02) ----------
+	// ---------- 宿主文件(§55:2026-09-02 移植端点) ----------
 	s.register("GET", "/v1/files", s.handleFileList)
 	s.register("GET", "/v1/files/entry", s.handleFileEntry)
 	s.register("POST", "/v1/files/entries", s.handleFileEntries)
@@ -135,7 +135,7 @@ func (s *Server) registerRoutes() {
 	s.register("POST", "/v1/files/upload", s.handleFileUpload)
 	s.register("POST", "/v1/files/actions", s.handleFileAction)
 
-	// ---------- 宿主终端(§56:HTTP 长轮询,KPanel 移植,2026-09-02) ----------
+	// ---------- 宿主终端(§56:HTTP 长轮询,2026-09-02 移植) ----------
 	s.register("POST", "/v1/host/terminal", s.handleTerminalOpen)
 	s.register("GET", "/v1/host/terminal/{id}/output", s.handleTerminalOperationRoute("output"))
 	s.register("POST", "/v1/host/terminal/{id}/input", s.handleTerminalOperationRoute("input"))
