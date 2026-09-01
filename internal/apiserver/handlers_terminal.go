@@ -84,6 +84,9 @@ func (s *Server) handleHostTerminalWS(c *Ctx, conn *websocket.Conn) error {
 		}
 		return true
 	})
+	// wsPump 返回(浏览器断开/ctx 取消)后主动关闭会话:PTY 输出 goroutine 阻塞在
+	// ptmx.Read 上,只有 Close 能解除;不主动 Close 则 wg.Wait 永久阻塞(goroutine 泄漏)。
+	s.Term.Close(sess.ID)
 	wg.Wait()
 	return nil
 }

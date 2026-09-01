@@ -188,6 +188,7 @@ func (s *Server) handleTrashStatus(c *Ctx) error {
 	c.OK(st)
 	return nil
 }
+
 // handleTrashSetEnabled 回收站开关
 func (s *Server) handleTrashSetEnabled(c *Ctx) error {
 	var req struct {
