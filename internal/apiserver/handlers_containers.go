@@ -4,8 +4,10 @@ package apiserver
 import (
 	"encoding/json"
 	"strconv"
+	"time"
 
 	"github.com/DockOrae/DockOrae-Agent/internal/docker"
+	"github.com/DockOrae/DockOrae-Agent/internal/errs"
 	"github.com/DockOrae/DockOrae-Agent/internal/oplock"
 )
 
@@ -158,6 +160,35 @@ func (s *Server) handleContainerLogsTail(c *Ctx) error {
 		return err
 	}
 	c.OK(map[string]any{"logs": out})
+	return nil
+}
+
+// handleContainerExec 容器内执行单条命令(非交互;§2026-09-02 容器终端 Exec 重构)。
+// 请求 {command, timeout_seconds?};命令退出码非 0 不视为错误(200 + exit_code 字段)。
+func (s *Server) handleContainerExec(c *Ctx) error {
+	var req struct {
+		Command        string `json:"command"`
+		TimeoutSeconds int    `json:"timeout_seconds"`
+	}
+	if err := c.Bind(&req); err != nil {
+		return err
+	}
+	if req.Command == "" {
+		return errs.New(errs.INVALID_REQUEST, "command 不能为空")
+	}
+	timeout := time.Duration(req.TimeoutSeconds) * time.Second
+	if req.TimeoutSeconds > 0 && (req.TimeoutSeconds < 1 || req.TimeoutSeconds > 300) {
+		return errs.Newf(errs.INVALID_REQUEST, "timeout_seconds 取值范围 1~300")
+	}
+	start := now()
+	res, err := s.Docker.ContainerExec(c.R.Context(), c.Param("id"), req.Command, timeout)
+	// 审计仅记录操作元数据(不落 command/stdout/stderr,防敏感数据入日志)
+	detail := map[string]any{"exit_code": res.ExitCode, "duration_ms": res.DurationMS, "truncated": res.Truncated}
+	c.Audit("container.exec", c.Param("id"), start, err, "", detail)
+	if err != nil {
+		return err
+	}
+	c.OK(res)
 	return nil
 }
 

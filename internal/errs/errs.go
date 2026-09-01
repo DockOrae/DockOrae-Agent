@@ -85,6 +85,14 @@ const (
 	UPLOAD_LIMIT     = "UPLOAD_LIMIT"     // 上传大小超限(§20)
 )
 
+// 容器命令执行错误码(2026-09-02 容器终端 Exec 重构)
+const (
+	EXEC_TIMEOUT          = "EXEC_TIMEOUT"          // 命令执行超时
+	EXEC_OUTPUT_LIMIT     = "EXEC_OUTPUT_LIMIT"     // 命令输出超过上限
+	EXEC_CONCURRENT_LIMIT = "EXEC_CONCURRENT_LIMIT" // 同容器并发执行超限
+	CONTAINER_NOT_RUNNING = "CONTAINER_NOT_RUNNING" // 容器未运行
+)
+
 // Error Agent 统一错误
 type Error struct {
 	Code    string `json:"code"`
@@ -122,8 +130,12 @@ func StatusFor(code string) int {
 		return http.StatusConflict
 	case AGENT_UNAVAILABLE, DOCKER_UNAVAILABLE, PTY_UNAVAILABLE, TERMINAL_SESSION:
 		return http.StatusBadGateway
-	case TERMINAL_LIMIT:
+	case TERMINAL_LIMIT, EXEC_CONCURRENT_LIMIT:
 		return http.StatusTooManyRequests
+	case EXEC_TIMEOUT:
+		return http.StatusGatewayTimeout
+	case CONTAINER_NOT_RUNNING:
+		return http.StatusConflict
 	default:
 		return http.StatusInternalServerError
 	}

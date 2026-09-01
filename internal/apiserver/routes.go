@@ -56,6 +56,7 @@ func (s *Server) registerRoutes() {
 	s.register("POST", "/v1/docker/containers/{id}/rename", s.handleContainerRename)
 	s.register("GET", "/v1/docker/containers/{id}/wait", s.handleContainerWait)
 	s.register("GET", "/v1/docker/containers/{id}/logs_tail", s.handleContainerLogsTail)
+	s.register("POST", "/v1/docker/containers/{id}/exec", s.handleContainerExec)
 
 	// ---------- images(§8) ----------
 	s.register("GET", "/v1/docker/images", s.handleImagesList)
@@ -145,7 +146,6 @@ func (s *Server) registerRoutes() {
 	// ---------- WebSocket(全部经 Bearer 认证) ----------
 	s.registerWS("GET", "/v1/docker/containers/{id}/logs", s.handleContainerLogsWS)
 	s.registerWS("GET", "/v1/docker/containers/{id}/stats", s.handleContainerStatsWS)
-	s.registerWS("GET", "/v1/docker/containers/{id}/terminal", s.handleContainerTerminalWS)
 	s.registerWS("GET", "/v1/compose/managed/logs", s.handleComposeManagedLogsWS)
 	s.registerWS("GET", "/v1/docker/events", s.handleDockerEventsWS)
 }

@@ -19,10 +19,14 @@ import (
 // Service docker 服务
 type Service struct {
 	Exec *hostexec.Execer
+	// execSlots 同容器并发 Exec 计数(上限 MaxExecConcurrency)
+	execSlots *execSlotTracker
 }
 
 // New 构造
-func New(e *hostexec.Execer) *Service { return &Service{Exec: e} }
+func New(e *hostexec.Execer) *Service {
+	return &Service{Exec: e, execSlots: newExecSlotTracker()}
+}
 
 // Client 惰性构造 moby client(DOCKER_HOST 优先)
 func (s *Service) Client() (*client.Client, error) {

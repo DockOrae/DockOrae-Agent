@@ -10,7 +10,6 @@ import (
 	"encoding/json"
 	"io"
 	"strconv"
-	"strings"
 	"sync"
 
 	"github.com/gorilla/websocket"
@@ -109,95 +108,6 @@ func (s *Server) handleContainerStatsWS(c *Ctx, conn *websocket.Conn) error {
 		}
 	}
 	cancel()
-	_ = conn.WriteMessage(websocket.CloseMessage, nil)
-	return nil
-}
-
-// handleContainerTerminalWS 容器终端(exec TTY;协议与面板旧实现一致)
-func (s *Server) handleContainerTerminalWS(c *Ctx, conn *websocket.Conn) error {
-	id := c.Param("id")
-	shell := "/bin/sh"
-	if q := c.Query("shell"); q != "" {
-		shell = q
-	}
-	cli, err := s.Docker.Client()
-	if err != nil {
-		_ = conn.WriteMessage(websocket.TextMessage, []byte("[exec failed: "+err.Error()+"]\r\n"))
-		return nil
-	}
-	ctx, cancel := context.WithCancel(c.R.Context())
-	defer cancel()
-
-	execRes, err := cli.ExecCreate(ctx, id, client.ExecCreateOptions{
-		AttachStdin:  true,
-		AttachStdout: true,
-		AttachStderr: true,
-		TTY:          true,
-		Cmd:          []string{shell},
-	})
-	if err != nil {
-		_ = conn.WriteMessage(websocket.TextMessage, []byte("[exec failed: "+err.Error()+"]\r\n"))
-		return nil
-	}
-	attach, err := cli.ExecAttach(ctx, execRes.ID, client.ExecAttachOptions{TTY: true})
-	if err != nil {
-		_ = conn.WriteMessage(websocket.TextMessage, []byte("[exec failed: "+err.Error()+"]\r\n"))
-		return nil
-	}
-	defer attach.Close()
-
-	// exec 输出 → ws 二进制
-	var wg sync.WaitGroup
-	wg.Add(1)
-	go func() {
-		defer wg.Done()
-		buf := make([]byte, 4096)
-		for {
-			n, err := attach.Reader.Read(buf)
-			if n > 0 {
-				if conn.WriteMessage(websocket.BinaryMessage, buf[:n]) != nil {
-					cancel()
-					return
-				}
-			}
-			if err != nil {
-				cancel()
-				return
-			}
-		}
-	}()
-
-	// ws → exec 输入 + resize/stop 控制协议(单读方,避免并发读)
-	wsPump(c, conn, func(mt int, data []byte) bool {
-		switch mt {
-		case websocket.BinaryMessage:
-			if _, err := attach.Conn.Write(data); err != nil {
-				return false
-			}
-		case websocket.TextMessage:
-			text := string(data)
-			if strings.HasPrefix(text, "resize:") {
-				parts := strings.SplitN(strings.TrimPrefix(text, "resize:"), ",", 2)
-				if len(parts) == 2 {
-					w, err1 := strconv.Atoi(parts[0])
-					h, err2 := strconv.Atoi(parts[1])
-					if err1 == nil && err2 == nil {
-						_, _ = cli.ExecResize(ctx, execRes.ID, client.ExecResizeOptions{Width: uint(w), Height: uint(h)})
-					}
-				}
-			} else if text == "stop" {
-				return false
-			} else {
-				_, _ = attach.Conn.Write(data)
-			}
-		case websocket.CloseMessage:
-			return false
-		}
-		return true
-	})
-	cancel()
-	attach.Close()
-	wg.Wait()
 	_ = conn.WriteMessage(websocket.CloseMessage, nil)
 	return nil
 }
