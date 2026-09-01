@@ -20,7 +20,7 @@ import (
 	"github.com/DockOrae/DockOrae-Agent/internal/config"
 	"github.com/DockOrae/DockOrae-Agent/internal/disk"
 	"github.com/DockOrae/DockOrae-Agent/internal/docker"
-	"github.com/DockOrae/DockOrae-Agent/internal/files"
+	"github.com/DockOrae/DockOrae-Agent/internal/filemanager"
 	"github.com/DockOrae/DockOrae-Agent/internal/host"
 	"github.com/DockOrae/DockOrae-Agent/internal/hostexec"
 	"github.com/DockOrae/DockOrae-Agent/internal/network"
@@ -54,7 +54,7 @@ type Server struct {
 	Disk           *disk.Service
 	Sysctl         *sysctl.Service
 	Network        *network.Service
-	Files          *files.Service
+	FilemgrSvc     *filemanager.Service
 	Term           *terminal.Manager
 
 	httpSrv   *http.Server
@@ -117,8 +117,14 @@ func New(cfg *config.Config) (*Server, error) {
 		Disk:           disk.New(exec),
 		Sysctl:         sysctl.New(exec),
 		Network:        network.New(exec),
-		Files:          files.New(exec, cfg.DataDir),
-		Term:           terminal.NewManager(exec),
+		FilemgrSvc:     filemanager.NewService(exec),
+		Term: terminal.NewWithExec(exec, terminal.Config{
+			ParentUnit:       "dockorae-agent.service",
+			MaxSessions:      cfg.TermMaxSessions,
+			MaxOwnerSessions: cfg.TermMaxOwnerSessions,
+			IdleTimeout:      cfg.TermIdleTimeout,
+			Lifetime:         cfg.TermMaxLifetime,
+		}),
 	}
 	s.registerRoutes()
 	return s, nil
@@ -152,6 +158,7 @@ func (s *Server) Shutdown(ctx context.Context) {
 	if s.httpSrv != nil {
 		_ = s.httpSrv.Shutdown(ctx)
 	}
+	s.Term.CloseAll()
 	s.Audit.Close()
 }
 

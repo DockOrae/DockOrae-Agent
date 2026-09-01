@@ -79,6 +79,10 @@ const (
 	UNSUPPORTED_ARCH  = "UNSUPPORTED_ARCH"  // 不支持的压缩格式
 	PTY_UNAVAILABLE   = "PTY_UNAVAILABLE"   // PTY 不可用(仅 Linux 宿主支持)
 	TERMINAL_SESSION  = "TERMINAL_SESSION"  // 终端会话错误
+	ARCHIVE_LIMIT     = "ARCHIVE_LIMIT"     // 压缩/解压资源超限(§20)
+	COPY_LIMIT        = "COPY_LIMIT"        // 复制资源超限(§20)
+	TERMINAL_LIMIT    = "TERMINAL_LIMIT"    // 终端会话数/速率超限(§20)
+	UPLOAD_LIMIT      = "UPLOAD_LIMIT"      // 上传大小超限(§20)
 )
 
 // Error Agent 统一错误
@@ -106,7 +110,7 @@ func (e *Error) WithStatus(s int) *Error { e.Status = s; return e }
 // StatusFor 错误码 → 建议 HTTP 状态
 func StatusFor(code string) int {
 	switch code {
-	case INVALID_REQUEST, SWAP_INVALID_SIZE, INVALID_CONFIRM, PATH_INVALID, FILE_TOO_LARGE, UNSUPPORTED_ARCH:
+	case INVALID_REQUEST, SWAP_INVALID_SIZE, INVALID_CONFIRM, PATH_INVALID, FILE_TOO_LARGE, UNSUPPORTED_ARCH, ARCHIVE_LIMIT, COPY_LIMIT, UPLOAD_LIMIT:
 		return http.StatusBadRequest
 	case UNAUTHORIZED:
 		return http.StatusUnauthorized
@@ -118,6 +122,8 @@ func StatusFor(code string) int {
 		return http.StatusConflict
 	case AGENT_UNAVAILABLE, DOCKER_UNAVAILABLE, PTY_UNAVAILABLE, TERMINAL_SESSION:
 		return http.StatusBadGateway
+	case TERMINAL_LIMIT:
+		return http.StatusTooManyRequests
 	default:
 		return http.StatusInternalServerError
 	}

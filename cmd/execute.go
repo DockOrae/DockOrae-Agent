@@ -9,14 +9,14 @@ import (
 	"github.com/DockOrae/DockOrae-Agent/internal/apiserver"
 	"github.com/DockOrae/DockOrae-Agent/internal/binary"
 	"github.com/DockOrae/DockOrae-Agent/internal/config"
-	"github.com/DockOrae/DockOrae-Agent/internal/files"
+	"github.com/DockOrae/DockOrae-Agent/internal/filemanager"
 )
 
 // Execute Agent 启动入口(极薄,仅解析参数并拉起 API 服务)
 func Execute() {
-	// 隐藏子命令:fsop(宿主文件操作,nsenter 模式下由 Agent 重新执行自身进入宿主命名空间)
-	if len(os.Args) > 1 && os.Args[1] == "fsop" {
-		os.Exit(files.FsopMain(os.Args[2:]))
+	// 隐藏子命令:filemgr(KPanel 移植的宿主文件管理器,经 nsenter 重执行进入宿主命名空间)
+	if len(os.Args) > 1 && os.Args[1] == "filemgr" {
+		os.Exit(filemanager.FilemgrMain(os.Args[2:]))
 	}
 
 	fs := flag.NewFlagSet("dockorae-agent", flag.ExitOnError)
