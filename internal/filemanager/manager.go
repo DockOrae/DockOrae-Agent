@@ -422,7 +422,9 @@ func (m *Manager) WriteText(
 		return contract.FileEntry{}, ErrNotRegular
 	}
 	current := m.entry(normalized, info)
-	if input.ExpectedResourceVersion == "" ||
+	// 冲突检测:expectedResourceVersion 为空 = 跳过校验(新建/强制保存);
+	// 非空时必须与当前资源版本一致,否则视为并发修改冲突
+	if input.ExpectedResourceVersion != "" &&
 		input.ExpectedResourceVersion != current.ResourceVersion {
 		return contract.FileEntry{}, ErrConflict
 	}
